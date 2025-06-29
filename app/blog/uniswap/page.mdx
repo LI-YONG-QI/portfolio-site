@@ -1,0 +1,183 @@
+export const metadata = {
+  title: 'Exploring the Intersection of Design, AI, and Design Engineering',
+  description:
+    'Design and artificial intelligence (AI) are increasingly intertwined, driving innovation across industries. As technology evolves, the role of design engineering is more critical than ever, bridging creativity and functionality.',
+  alternates: {
+    canonical:
+      '/blog/exploring-the-intersection-of-design-ai-and-design-engineering',
+  },
+}
+
+<Cover src="/aave-logo.png" alt="Aave Logo" caption="Aave" />
+
+# Comparison with v2
+
+In v2, the formula:
+
+$$
+x \cdot y = k
+$$
+
+is used to calculate the pool's liquidity, reserves, and price via the ratio of x and y. Liquidity is provided **globally**, meaning it covers the entire price range. No matter the market price, there's always liquidity available, avoiding token depletion.
+
+In v3, users can **concentrate liquidity within specific price ranges** to improve capital efficiency. This requires major changes in liquidity calculation, as a single global `k` constant no longer applies.
+
+![Figure1](https://i.imgur.com/HZgNHcE.png)
+
+## Providing Liquidity in a Specific Range
+
+In v3, liquidity can be provided within specified ranges, called **positions** — stored as NFTs. As long as the market price is within the range, LPs collect fees.
+
+![Figure2](https://i.imgur.com/dCkrpsp.png)
+
+When price moves out of range, the position becomes inactive and can't collect fees. If liquidity is withdrawn, it will be in a **single token**.
+
+When price reaches a boundary (e.g. P2), the position's token B is exhausted — it can't provide market making beyond this point.
+
+![Figure3](https://i.imgur.com/05PKsGi.png)
+
+## Price & Liquidity Calculations
+
+v3 only stores:
+
+- $\sqrt P$ — square root of price ($\sqrt{y/x}$)
+- $L$ — liquidity, $x \cdot y = k = L^2$
+
+From $x \cdot y = k$:
+
+- $x = \frac{1}{\sqrt{P}} L$
+- $y = \sqrt{P} L$
+
+Prices are expressed in **ticks**:
+
+- $p(i) = 1.0001^i$
+- $\sqrt{p(i)} = 1.0001^{i/2}$
+- $\log_{1.0001}{(p)} = i$
+
+## Liquidity
+
+In v2, liquidity depends on reserves with a 50/50 value ratio.
+
+In v3:
+
+- Each position has price bounds.
+- The pool’s total liquidity is a collection of these positions.
+
+![Figure4](https://i.imgur.com/EQN7sAy.png)
+
+### LP Use Case
+
+From Figure 3:
+
+- $\Delta y = \Delta \sqrt{P} L$ (f1)
+- $\Delta x = \Delta \frac{1}{\sqrt{P}} L$ (f2)
+
+Further:
+
+- $\Delta y = (\sqrt{P} - \sqrt{P2}) L$
+- $\Delta x = (\frac{1}{\sqrt{P}} - \frac{1}{\sqrt{P1}}) L$
+
+Finally:
+
+$$
+\frac{\Delta y}{\Delta x} = (\sqrt{P} - \sqrt{P2}) \times \frac{\sqrt{P} \cdot \sqrt{P1}}{\sqrt{P1} - \sqrt{P}}
+$$
+
+**Example:**
+
+- $p = 2645$
+- $p1 = 2998$
+- $p2 = 1000$
+
+Result: $\frac{\Delta y}{\Delta x} \approx 16779$ — providing 1 y requires 16779 x.
+
+> _Note: Solidity uses ticks and Q64.96 fixed-point (sqrtPriceX96). On-chain results may differ._
+
+## Price
+
+Swap flow without crossing ticks:
+
+1. Specify **input or output amount**
+2. Use pool’s $L$ and token amount to compute $\Delta P$
+3. Compute corresponding token change
+
+From (f1) and (f2):
+
+- $\Delta \sqrt{P} = \frac{\Delta y}{L}$ (f4)
+- $\Delta \frac{1}{\sqrt{P}} = \frac{\Delta x}{L}$ (f5)
+
+**Example:** Adding 10 y in a $L=100$ pool:
+
+- $\Delta \sqrt{P} = 0.1$
+- $\sqrt{P_t} = \sqrt{P_c} + 0.1$
+
+Then:
+
+$$
+\Delta x = (\frac{1}{\sqrt{P_t}} - \frac{1}{\sqrt{P_c}}) L
+$$
+
+Result: $\Delta x \approx 0.236$
+
+## UI Example
+
+**Figure 5:** USDT/ETH pool UI
+
+![Figure5](https://i.imgur.com/LMpDPt3.png)
+
+Current price: 3632, range: 2195~6620. Fixing 1 ETH requires 3188 USDT.
+
+Adjusting price range (Figure 6) increases required USDT as range widens.
+
+![Figure6](https://i.imgur.com/mTw5OCx.png)
+
+# Contract Architecture
+
+## Uniswap Overview
+
+Universal Router manages both v2 and v3 swaps.
+
+![Uniswap Universal Router](https://i.imgur.com/0ogynpW.png)
+
+### Universal Router
+
+Acts like a multicall, bundling operations via bytes-encoded instructions. The frontend picks optimal paths and parameters.
+
+## V3 Core
+
+Minimal contract architecture (production uses Universal Router).
+
+![V3 Core](https://i.imgur.com/tvMJuiS.png)
+
+### PoolFactory
+
+Creates pools and assigns ownership.
+
+### Pool
+
+Handles:
+
+- `mint` — add a position, mint NFT
+- `burn` — remove liquidity, burn NFT
+- `swap` — execute token swaps
+- `collect` — collect earned fees
+
+## Periphery
+
+Helper contracts.
+
+### SwapRouter
+
+Handles swap logic with exactInput / exactOutput.
+
+### NFTManager
+
+ERC-721 implementation for position NFTs with functions like `collect`, `increaseLiquidity`, `decreaseLiquidity`.
+
+# References
+
+- [Uniswap Whitepaper](https://app.uniswap.org/whitepaper-v3.pdf)
+- [Uniswap Docs](https://docs.uniswap.org/)
+- [Uniswap V3 Book (Chinese)](https://y1cunhui.github.io/uniswapV3-book-zh-cn/docs/milestone_3/cross-tick-swaps/)
+- [Why Uniswap v3 LP isn't at market price](https://medium.com/@web3roy/%E7%82%BA%E4%BB%80%E9%BA%BC-uniswap-v3-%E6%B7%BB%E5%8A%A0%E6%B5%81%E5%8B%95%E6%80%A7%E4%B8%8D%E6%98%AF%E6%8C%89%E7%95%B6%E5%89%8D%E5%83%B9%E6%A0%BC%E6%B7%BB%E5%8A%A0-d0a61563d564)
+- [UniSwap v3: The Complete Guide](https://www.liquidloans.io/vault/research/defi/uniswap-v3-the-complete-guide)

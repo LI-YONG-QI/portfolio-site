@@ -110,6 +110,12 @@ export const BLOG_POSTS: BlogPost[] = [
     link: '/blog/aave',
     uid: 'blog-1',
   },
+  {
+    title: 'Uniswap Mechanism',
+    description: 'Uniswap mechanism research and analysis',
+    link: '/blog/uniswap',
+    uid: 'blog-2',
+  },
 ]
 
 export const SOCIAL_LINKS: SocialLink[] = [

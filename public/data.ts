@@ -53,7 +53,6 @@ export const PROJECTS: Project[] = [
       '/dynavest4.png',
       '/dynavest5.png',
       '/dynavest6.png',
-      '/dynavest7.png',
     ],
     externalLinks: {
       github: 'https://github.com/LI-YONG-QI/dynavest',

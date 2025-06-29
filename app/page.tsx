@@ -30,7 +30,7 @@ import {
   CarouselPrevious,
 } from '@/components/ui/carousel'
 
-export function ProjectCarousel({ images }: { images: string[] }) {
+function ProjectCarousel({ images }: { images: string[] }) {
   return (
     <div className="relative w-full max-w-2xl">
       <Carousel className="w-full">

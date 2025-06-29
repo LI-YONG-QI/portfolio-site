@@ -1,0 +1,286 @@
+export const metadata = {
+  title: 'Exploring the Intersection of Design, AI, and Design Engineering',
+  description:
+    'Design and artificial intelligence (AI) are increasingly intertwined, driving innovation across industries. As technology evolves, the role of design engineering is more critical than ever, bridging creativity and functionality.',
+  alternates: {
+    canonical:
+      '/blog/exploring-the-intersection-of-design-ai-and-design-engineering',
+  },
+}
+
+<Cover
+  src="https://cdn.cosmos.so/affd4b79-e848-4dfd-bd42-5f2c4a847365?format=jpeg"
+  alt="Image from the movie Alien - from cosmos.com"
+  caption="cosmos.com"
+/>
+
+# Aave Liquidation Mechanism
+
+When a position’s Health Factor drops below 1, it becomes eligible for liquidation. The Health Factor is calculated as:
+
+$$
+Health Factor = \frac{\text{Total Collateral Value} \times \text{Weighted Average Liquidation Threshold}}{\text{Total Borrow Value}}
+$$
+
+The liquidation threshold is determined through Aave governance and varies for each asset (typically based on its risk profile). For example, if a user deposits \$10,000 worth of ETH with an 80% liquidation threshold and borrows \$6,000 worth of GHO, their Health Factor would be:
+
+$$
+\frac{10,000 \times 0.8}{6,000} = 1.333
+$$
+
+As the Health Factor approaches 1, the risk of liquidation increases.
+
+Liquidation is permissionless — anyone can liquidate an unhealthy position. When liquidation occurs, the liquidator repays either 50% or 100% of the borrower's debt. Additionally, the borrower incurs a liquidation penalty on their collateral.
+
+# Calculation Details
+
+When calculating liquidation eligibility, the current Health Factor determines the liquidation ratio:
+
+- If `0.95 < Health Factor < 1`, only **50%** of the borrower's debt can be repaid.
+- If `Health Factor ≤ 0.95`, then **100%** of the debt can be repaid.
+
+During liquidation, the liquidator repays the borrower’s debt to claim their collateral. Additionally, a liquidation bonus is granted as a reward for the liquidator. So, the borrower's total loss equals:
+
+$$
+\text{Collateral Lost} = \text{Debt Repaid} + \text{Liquidation Bonus}
+$$
+
+The liquidator’s profit:
+
+$$
+\text{Profit} = \text{Liquidation Bonus} - \text{Protocol Fee} - \text{Gas Costs}
+$$
+
+The liquidation bonus varies by asset and is also determined by Aave governance.
+
+# Liquidation Execution
+
+As liquidation is permissionless, anyone can trigger it by calling the `liquidationCall()` function on the `Pool` contract. Liquidators can monitor on-chain positions for unhealthy Health Factors and execute liquidation when conditions are met.
+
+To perform liquidation, the liquidator must have sufficient assets to repay the borrower's debt. If the borrower has multiple collateral types — e.g., A, B, and C tokens — backing a loan of token D, the liquidator can choose **any one collateral type** to repay against, as long as its value covers the liquidation amount.
+
+For example:
+If a borrower has:
+
+- A token: \$20
+- B token: \$100
+- C token: \$200
+
+Borrowed: \$100 of D token
+
+A liquidator can choose to use \$100 worth of A token to repay, seize the corresponding A token collateral (plus bonus), and typically picks the collateral with the highest liquidation bonus.
+
+---
+
+# Safety Module
+
+**Bad debt is covered by the Safety Module.**
+
+In cases where collateral price drops too quickly for liquidators to react, resulting in bad debt, Aave’s Safety Module is designed to cover the shortfall. Token holders can stake **AAVE**, **GHO**, or **ABPT** tokens to secure the protocol.
+
+If a shortfall occurs, staked tokens from the Safety Module are slashed to repay the debt. Stakers receive AAVE rewards as compensation, and the reward parameters are governed by Aave’s DAO.
+
+When staking, users receive staking certificates (stkAAVE / stkABPT) as proof of deposit.
+
+---
+
+# Price Oracle
+
+To verify collateralization and Health Factors, Aave uses USD-based external price feeds from **Chainlink Oracles**. Chainlink is highly accurate and reliable, and is a preferred choice for many DeFi protocols.
+
+Whenever borrow, repay, or liquidation operations occur, the Pool contract queries the Chainlink Oracle for the latest prices to check if positions qualify for liquidation.
+
+---
+
+# Interest Rate Model
+
+## Borrowing Rate
+
+Aave’s interest rate model uses a **piecewise function** (not a simple linear one). The rate increases slowly until it reaches an **Optimal Utilization Rate (e.g., 90%)**, beyond which it rises sharply.
+**Utilization** $U$ is calculated as:
+
+$$
+U = \frac{\text{Borrowed}}{\text{Borrowed} + \text{Free Deposits}}
+$$
+
+Where:
+
+- **Borrowed** = funds already loaned out
+- **Free Deposits** = unused supplied funds
+
+At utilization rates above the optimal point (90%), the borrow rate increases rapidly to discourage over-borrowing and reduce bank-run risk.
+
+Aave’s piecewise rate formula:
+
+$$
+R_{\text{borrow}} =
+\begin{cases}
+R_{\text{intercept}} + \frac{U}{U_{\text{optimal}}} \times R_{\text{slope1}}, & U \le U_{\text{optimal}} \\
+R_{\text{intercept}} + R_{\text{slope1}} + \frac{U - U_{\text{optimal}}}{1 - U_{\text{optimal}}} \times R_{\text{slope2}}, & U > U_{\text{optimal}}
+\end{cases}
+$$
+
+Where:
+
+- $R_{\text{borrow}}$: Current borrow rate
+- $R_{\text{intercept}}$: Base rate (set by governance)
+- $R_{\text{slope1}}$: Rate slope before optimal utilization
+- $R_{\text{slope2}}$: Rate slope after optimal utilization
+
+**Diagram:**
+
+![](https://i.imgur.com/irIoBFh.png)
+
+The chart illustrates the rate behavior before and after the optimal utilization point (e.g. 90%).
+
+## Use Case
+
+Given:
+
+$$
+R_{\text{intercept}} = 0
+$$
+
+$$
+R_{\text{slope1}} = 0.04
+$$
+
+$$
+R_{\text{slope2}} = 0.75
+$$
+
+$$
+U_{\text{optimal}} = 0.80
+$$
+
+- If $U = 20\%$
+
+$$
+R_{\text{borrow}} = 0 + \frac{20}{80} \times 0.04 = 0.01
+$$
+
+Borrow rate = **1%**
+
+- If $U = 90\%$
+
+$$
+R_{\text{borrow}} = 0 + 0.04 + \frac{0.90-0.80}{1-0.80} \times 0.75 = 0.04 + \frac{0.10}{0.20} \times 0.75 = 0.04 + 0.375 = 0.415
+$$
+
+Borrow rate = **41.5%**
+
+---
+
+## Supply Rate
+
+Once the borrow rate is calculated, the supply rate is derived simply by multiplying the borrow rate by utilization:
+
+$$
+R_{\text{deposits}} = R_{\text{borrow}} \times U
+$$
+
+This ensures all borrower-paid interest is fairly distributed to depositors (excluding protocol fees).
+
+**Example:**
+
+- 10 users deposit 1 ETH each (total 10 ETH)
+- 5 ETH is borrowed at a 20% interest rate ($U=50\%$)
+- 5 ETH borrowed generates 1 ETH in interest
+- 1 ETH interest divided across 10 ETH → each ETH earns 0.1 ETH → 10% supply rate
+
+Formula check:
+
+$$
+10\% = 20\% \times 50\%
+$$
+
+---
+
+# AToken
+
+When a user deposits tokens, they receive **aTokens** (e.g. aETH) representing interest-bearing positions. aTokens are pegged 1:1 to the underlying asset.
+They allow users to freely transfer yield-bearing positions without withdrawing the actual asset — similar to Uniswap v3 position NFTs.
+
+### aToken Interest Accumulation
+
+Aave updates aToken balances **in real time** by overriding the ERC20 `balanceOf()` function:
+
+1. Fetches user’s raw stored balance from a mapping
+2. Multiplies it by the **Liquidity Index**
+3. Returns the updated balance
+
+The Liquidity Index increments every time a transaction affecting reserves occurs: `supply`, `borrow`, `repay`, `withdraw`, `liquidate`.
+
+- Index starts at 1.0
+- It increases cumulatively over time
+
+$$
+\text{Index}_{a,n} = \text{Index}_{a,n-1} \times (1 + r \times t)
+$$
+
+---
+
+### Use Case
+
+Assuming historical annual interest rates:
+
+| Month   | Annual Rate |
+| :------ | :---------- |
+| Month 1 | 12%         |
+| Month 2 | 6%          |
+| Month 3 | 8%          |
+
+**Liquidity Index Calculation:**
+
+| Month          | Liquidity Index                        |
+| :------------- | :------------------------------------- |
+| End of Month 1 | $1 \times (1 + 0.12/12) = 1.01$        |
+| End of Month 2 | $1.01 \times (1 + 0.06/12) = 1.0105$   |
+| End of Month 3 | $1.0105 \times (1 + 0.08/12) = 1.0113$ |
+
+If a user deposits 10 ETH at the start:
+
+| Month          | Balance                                 |
+| :------------- | :-------------------------------------- |
+| End of Month 1 | $10 \times 1.01 = 10.1$ ETH             |
+| End of Month 2 | $10.1 \times 1.0105 = 10.20105$ ETH     |
+| End of Month 3 | $10.20105 \times 1.0113 = 10.31345$ ETH |
+
+---
+
+# Code Architecture
+
+**Smart Contract System Diagram:**
+
+![](https://i.imgur.com/pZePeM1.png)
+
+### Pool
+
+The core contract for every Aave market. Each token market (e.g. ETH, USDC) has its own Pool contract, responsible for:
+
+- `supply()` → mints aTokens
+- `withdraw()` → burns aTokens
+- `borrow()`, `repay()`, `liquidate()`, etc.
+
+### PoolAddressesProvider
+
+Handles the configuration for the Pool contract:
+
+- Manages ACL roles
+- Links to the active Price Oracle
+- Supports Pool contract upgrades (upgradeable proxy pattern)
+
+### PoolAddressesProviderRegistry
+
+Maps Pools to their corresponding `PoolAddressesProvider` using a mapping structure.
+
+### ACLManager
+
+Access control contract based on OpenZeppelin’s AccessControl — defines multiple roles for protocol administration and risk management.
+
+---
+
+## References
+
+- [Aave Book](https://calnix.gitbook.io/aave-book/market-forces-x-interest-rate-models)
+- [Aave Docs](https://aave.com/docs)

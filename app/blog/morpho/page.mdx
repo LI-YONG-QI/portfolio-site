@@ -1,0 +1,243 @@
+export const metadata = {
+  title: 'Exploring the Intersection of Design, AI, and Design Engineering',
+  description:
+    'Design and artificial intelligence (AI) are increasingly intertwined, driving innovation across industries. As technology evolves, the role of design engineering is more critical than ever, bridging creativity and functionality.',
+  alternates: {
+    canonical:
+      '/blog/exploring-the-intersection-of-design-ai-and-design-engineering',
+  },
+}
+
+<Cover
+  src="/morpho-logo.svg"
+  alt="Morpho Logo"
+  caption="Morpho"
+  className="center"
+/>
+
+# Morpho Overview
+
+![](https://i.imgur.com/Onm7hpL.png)
+
+Morpho is a **permissionless lending market** with a clean and minimal implementation. It consists of three main parts:
+
+- Morpho Blue
+- Morpho Vault
+- Public Allocator
+
+---
+
+## Morpho Blue
+
+[Repository](https://github.com/morpho-org/morpho-blue)
+
+This is Morpho's core contract responsible for implementing the essential lending logic and market creation.
+
+### Market
+
+In Morpho, each market is independent. A market is defined by five basic parameters:
+
+- `loanToken`: the token being borrowed
+- `collateralToken`: the collateral token
+- `oracle`: the contract address for price feeds
+- `irm`: the interest rate model contract
+- `lltv`: liquidation threshold (debt/collateral ratio)
+
+> [Market creation tutorial](https://docs.morpho.org/morpho/tutorials/market-creation)
+
+Based on these five parameters, a unique `id` is generated and stored in the `markets` mapping. No additional contract deployment is required. Market creation is permissionless, meaning anyone can call `createMarket` to deploy their own market.
+
+**Note:** Currently, the `irm` contracts must be whitelisted, introducing a degree of centralization.
+
+Example: Multiple USDT/ETH lending pairs can exist due to differing LLTV and Oracle contracts, each generating a distinct id.
+
+### Lending Logic
+
+Six core functions make up the lending system:
+
+- `supply`: deposit tokens to earn interest
+- `withdraw`: withdraw supplied tokens
+- `borrow`: borrow assets
+- `repay`: repay borrowed assets
+- `liquidate`: liquidate undercollateralized positions
+- `flashloan`: perform flash loans
+
+> [Function reference](https://docs.morpho.org/morpho/tutorials/manage-positions)
+
+All operations require specifying a `market` to determine which market to interact with.
+
+During these actions, `_accrueInterest` is called to calculate interest accrual. Each market uses the following struct:
+
+```solidity
+struct Market {
+    uint128 totalSupplyAssets;
+    uint128 totalSupplyShares;
+    uint128 totalBorrowAssets;
+    uint128 totalBorrowShares;
+    uint128 lastUpdate;
+    uint128 fee;
+}
+```
+
+Markets use an **assets & shares model** for interest calculation. Shares represent ownership proportion of total assets. The advantage is that balances don't need to be updated in real-time. When redeeming, the system calculates the proportion of shares being redeemed and distributes the corresponding assets.
+
+When users `supply` assets, they receive corresponding shares. Later, those shares can be redeemed for accrued assets. Since supply and borrow interests accrue independently, the first four fields above are necessary.
+
+> More on share & assets conversion: [Morpho Lending Core](https://wiasliaw.io/articles/morpho_lending_core_impl)
+
+> Callback functions exist for certain operations — [IMorphoCallbacks.sol](https://github.com/morpho-org/morpho-blue/blob/main/src/interfaces/IMorphoCallbacks.sol#L6)
+
+---
+
+## Morpho Vaults (MetaMorpho)
+
+[Repository](https://github.com/morpho-org/metamorpho)
+
+Another key Morpho feature. In protocols like AAVE/Compound, all provided assets are shared across multiple markets, which means users bear risk from all pairs.
+
+![](https://i.imgur.com/fGzTh8Y.png)
+
+As shown, users can't control which markets their supplied USDC is used for. Morpho introduces **Vaults**, letting users manage their own risk exposures:
+
+![](https://i.imgur.com/v5Z4DY0.png)
+
+![](https://i.imgur.com/en1yXs4.png)
+
+Users can choose Vaults to deposit USDC and earn interest. Each Vault can specify which markets to supply user assets to. Vault creation is permissionless; anyone can deploy one and attract user deposits.
+
+For example, Alice wants to lend USDC only to low-risk markets like ETH and BTC. She can choose Vaults specifically for USDC/ETH and USDC/BTC. Vault developers may also extract profit margins in between.
+
+Vaults are optional — users can directly supply to markets. Vaults mainly streamline asset allocation, enabling one-click deposits to multiple markets.
+
+Each Vault manages one supply asset and multiple collateral assets.
+
+- Collateral defines the paired market pool
+  - E.g., collateral = WBTC, supply = USDC → risk exposure is **USDC/WBTC**
+
+### Vault Factory
+
+An official Vault Factory contract is deployed on-chain to automatically generate Vaults, which by default inherit from **ERC4626**.
+
+ERC4626 benefits:
+
+- Standardizes token vaults
+  - Enables any protocol to interact with these vaults
+  - Facilitates cross-protocol operations without requiring custom adapters
+
+- Implements ERC20
+  - Vault `shares` are ERC20 tokens representing ownership proportional to assets
+  - `shares` act as interest-bearing tokens
+
+- Standard interfaces
+  - `deposit`
+  - `withdraw`
+  - etc.
+
+> Though using the factory is convenient, Morpho Blue does **not** enforce ERC4626 compliance.
+
+---
+
+## Public Allocator
+
+[Repository](https://github.com/morpho-org/public-allocator)
+
+An officially deployed on-chain contract to redistribute liquidity between Vaults to satisfy market demands — typically when liquidity is fragmented.
+
+As each market is identified by unique parameters, even markets with the same tokens can have different ids, causing liquidity fragmentation.
+
+![](https://i.imgur.com/LzvV1nH.png)
+
+Example: Allocating all WETH Vaults to the wstETH/WETH market to fulfill an \$80 wstETH transaction.
+
+Key points:
+
+- Not auto-triggered. Requires frontend to pre-calculate and send `allocate` transactions before lending operations
+  - Triggers `reallocateTo` from frontend
+
+- Vaults must pre-authorize Allocator roles for redistribution
+- FlowCaps need to be set in Allocator, defining maximum allocation per Vault
+  - Configured via `setFlowCaps`, usually by Vault creators
+
+Example FlowCap format:
+
+```json
+[
+  {
+    "id": "0xc54d7acf14de29e0e5527cabd7a576506870346a78a11a6762e2cca66322ec41",
+    "caps": {
+      "maxIn": "199000000000000000000",
+      "maxOut": "199000000000000000000"
+    }
+  }
+]
+```
+
+- `maxIn`: maximum tokens that can be supplied to a market
+- `maxOut`: maximum tokens that can be withdrawn
+- `id`: market id
+
+---
+
+## Insights
+
+Personal thoughts and speculative insights, divided into functional and code design levels.
+
+### Functional Design
+
+#### Current Lending Protocols
+
+To understand Morpho's uniqueness, we must first examine existing protocols like AAVE, Compound. These platforms exert high control over listed assets, including fees, supported tokens (whitelisting), and Oracles. Users are fully dependent on the platform's configuration.
+
+Even if governance mechanisms exist, their upgradable contract designs and admin controls could still bypass community decisions.
+
+What is DeFi? Or what does "protocol" truly mean? In traditional networking, it means a communication standard everyone must follow to exchange data. In Web3, it's a standard for asset transactions. As long as contracts conform to the defined interfaces, anyone can interact with the protocol.
+
+[Coinbase defines](https://www.coinbase.com/learn/crypto-basics/what-is-a-protocol#:~:text=Protocols%20are%20basic%20sets%20of,securely%20exchanged%20on%20the%20internet.):
+
+> Protocols are basic sets of rules that allow data to be shared between computers. For cryptocurrencies, they establish the structure of the blockchain — the distributed database that allows digital money to be securely exchanged on the internet.
+
+Most DeFi adheres to this — defining open standards for composability and modularity.
+
+![](https://i.imgur.com/kJUqRKm.png)
+
+However, AAVE and others limit composability. For example, developers can't add arbitrary token markets, adjust interest models, or modify Oracles. This reduces openness and protocol neutrality.
+
+Imagine Google's SDKs — while developers can build with them, we wouldn't call Google an open protocol. The same reasoning applies.
+
+#### Morpho: Redefining Protocol
+
+Morpho stripped away non-essential features and distilled lending into its core functions implemented within **Morpho Blue**. It removed excessive permissions and designed the product as a **public good** — anyone can use it permissionlessly. Market creation and Oracle selection rights are handed back to users.
+
+This forms a true **protocol format**. Users must conform to a basic `market` format, but Morpho does not control how Oracles are implemented.
+
+Looking holistically, Morpho Blue covers all necessary protocol components. Vaults and Allocators are simply official examples of applications built on top.
+
+Uniswap’s V4, with hooks, is moving in a similar direction.
+
+Although Morpho still whitelists `irm` contracts, it represents a valuable step forward for DeFi modularity.
+
+### Code Design
+
+**Morpho’s lending logic is remarkably clean.** Morpho Blue only contains fundamental lending operations, while Vaults and other contracts are placed in separate repos.
+
+> All state-changing functions (balances, fees) reside in Morpho Blue.
+
+#### Open-Closed Principle / Single Responsibility Principle (OCP & SRP)
+
+As a base layer protocol, Morpho emphasizes minimal, abstract functions. OCP and SRP are critical. Overly complex or tightly coupled functions (like `withdraw` or `borrow`) would hinder composability.
+
+#### Periphery & Core Architecture
+
+Modern DeFi typically splits into Core and Periphery contracts.
+
+- **Core**: stores essential states, exposes setters/getters, enforces invariants (e.g. `x*y=k`), ensuring protocol safety
+- **Periphery**: stateless helpers for combining Core functions into higher-level operations
+
+Morpho Blue acts as **Core**. Public Allocator and Vault are **Periphery**.
+
+---
+
+## References
+
+- [Morpho by Anton](https://medium.com/defi-taiwan/借貸協議-morpho-簡介-f8e8f1bbfaa5)
+- [Morpho Docs](https://docs.morpho.org/morpho/contracts/morpho#supply)

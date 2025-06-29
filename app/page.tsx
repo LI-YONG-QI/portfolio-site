@@ -1,7 +1,7 @@
 'use client'
 import { motion } from 'motion/react'
 import { Spotlight } from '@/components/ui/spotlight'
-import { XIcon } from 'lucide-react'
+import { XIcon, Link as LinkIcon } from 'lucide-react'
 import {
   MorphingDialog,
   MorphingDialogTrigger,
@@ -29,6 +29,11 @@ import {
   CarouselNext,
   CarouselPrevious,
 } from '@/components/ui/carousel'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
 
 function ProjectCarousel({ images }: { images: string[] }) {
   return (
@@ -104,7 +109,7 @@ function ProjectContent({
               <h3 className="text-3xl font-bold text-zinc-900 dark:text-zinc-100">
                 {title}
               </h3>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 text-zinc-500">
                 {externalLinks?.github && (
                   <SocialIcon platform="github" link={externalLinks.github} />
                 )}
@@ -114,6 +119,14 @@ function ProjectContent({
                 {externalLinks?.discord && (
                   <SocialIcon platform="discord" link={externalLinks.discord} />
                 )}
+                {externalLinks?.others?.map((other, index) => (
+                  <SocialIcon
+                    key={index}
+                    platform="other"
+                    link={other}
+                    text={other}
+                  />
+                ))}
               </div>
               <p className="max-w-2xl text-zinc-500 dark:text-zinc-400">
                 {description}
@@ -140,7 +153,15 @@ function ProjectContent({
   )
 }
 
-function SocialIcon({ platform, link }: { platform: string; link: string }) {
+function SocialIcon({
+  platform,
+  link,
+  text,
+}: {
+  platform: string
+  link: string
+  text?: string
+}) {
   const getIcon = (platform: string) => {
     switch (platform.toLowerCase()) {
       case 'github':
@@ -161,6 +182,27 @@ function SocialIcon({ platform, link }: { platform: string; link: string }) {
             height={20}
           />
         )
+      case 'linkedin':
+        return (
+          <Image
+            src="/external/linkedin.svg"
+            alt="LinkedIn"
+            width={20}
+            height={20}
+          />
+        )
+      case 'other':
+        return (
+          <Tooltip>
+            <TooltipTrigger>
+              <LinkIcon width={20} height={20} className="text-white" />
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>{text}</p>
+            </TooltipContent>
+          </Tooltip>
+        )
+
       default:
         return null
     }
@@ -192,7 +234,7 @@ export default function Personal() {
         transition={TRANSITION_SECTION}
       >
         <div className="flex-1 text-zinc-600 dark:text-zinc-400">
-          <p>Focused on DeFi / Blockchain research and system development</p>
+          <p>Focusing on DeFi / Blockchain research and system development</p>
           <p className="mt-2">
             Exploring any new technologies and building powerful developer tools
           </p>
@@ -244,8 +286,7 @@ export default function Personal() {
         <div className="flex flex-col space-y-2">
           {WORK_EXPERIENCE.map((job) => (
             <a
-              className="relative overflow-hidden rounded-2xl bg-zinc-300/30 p-[1px] dark:bg-zinc-600/30"
-              href={job.link}
+              className="relative transform overflow-hidden rounded-2xl bg-zinc-300/30 p-[1px] transition-transform duration-300 hover:scale-105 dark:bg-zinc-600/30"
               target="_blank"
               rel="noopener noreferrer"
               key={job.id}

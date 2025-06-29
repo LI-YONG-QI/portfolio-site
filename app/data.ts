@@ -12,6 +12,7 @@ export type Project = {
     discord?: string
     telegram?: string
     medium?: string
+    others?: string[]
   }
 }
 
@@ -58,6 +59,11 @@ export const PROJECTS: Project[] = [
     externalLinks: {
       github: 'https://github.com/LI-YONG-QI/dynavest',
       twitter: 'https://x.com/dynavest_ai',
+      others: [
+        'https://ethglobal.com/showcase/dynavest-8noha',
+        'https://devfolio.co/projects/dynavest-8580',
+        'https://smaller-guidance-918670.framer.app/',
+      ],
     },
   },
 
@@ -78,43 +84,49 @@ export const PROJECTS: Project[] = [
 
 export const WORK_EXPERIENCE: WorkExperience[] = [
   {
-    company: 'Reglazed Studio',
-    title: 'CEO',
-    start: '2024',
+    company: 'Hong Wang Tech',
+    title: 'Blockchain Engineer',
+    start: '2023',
     end: 'Present',
-    link: 'https://ibelick.com',
+    link: 'https://www.hongwangtec.com/',
     id: 'work1',
   },
   {
-    company: 'Freelance',
-    title: 'Design Engineer',
-    start: '2022',
-    end: '2024',
-    link: 'https://ibelick.com',
-    id: 'work2',
+    company: 'DynaVest',
+    title: 'CTO',
+    start: '2024',
+    end: 'Present',
+    link: 'https://dynavest.ai/',
+    id: 'work3',
   },
   {
-    company: 'Freelance',
-    title: 'Front-end Developer',
-    start: '2017',
-    end: 'Present',
-    link: 'https://ibelick.com',
-    id: 'work3',
+    company: 'River',
+    title: 'Smart Contract Engineer',
+    start: '2024 / 09',
+    end: '2024 / 11',
+    link: 'https://app.river.inc/',
+    id: 'work2',
   },
 ]
 
 export const BLOG_POSTS: BlogPost[] = [
   {
-    title: 'Aave Mechanism',
+    title: 'Aave V3 Notes',
     description: 'Aave mechanism research and analysis  ',
     link: '/blog/aave',
     uid: 'blog-1',
   },
   {
-    title: 'Uniswap Mechanism',
+    title: 'Uniswap V3 Notes',
     description: 'Uniswap mechanism research and analysis',
     link: '/blog/uniswap',
     uid: 'blog-2',
+  },
+  {
+    title: 'Morpho Notes',
+    description: 'Morpho mechanism research and analysis',
+    link: '/blog/morpho',
+    uid: 'blog-3',
   },
 ]
 
@@ -133,4 +145,4 @@ export const SOCIAL_LINKS: SocialLink[] = [
   },
 ]
 
-export const EMAIL = 'your@email.com'
+export const EMAIL = 'chifox.eth@gmail.com'

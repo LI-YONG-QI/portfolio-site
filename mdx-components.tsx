@@ -9,15 +9,26 @@ export function useMDXComponents(components: MDXComponents): MDXComponents {
       src,
       alt,
       caption,
+      className,
     }: {
       src: string
       alt: string
       caption: string
+      className?: string
     }) => {
       return (
-        <figure>
-          <img src={src} alt={alt} className="rounded-xl" />
-          <figcaption className="text-center">{caption}</figcaption>
+        <figure
+          className={`not-prose my-8 flex flex-col items-center ${className || ''}`}
+        >
+          <img
+            src={src}
+            alt={alt}
+            className="mx-auto block max-w-md rounded-xl"
+            style={{ margin: '0 auto' }}
+          />
+          <figcaption className="mt-2 text-center text-sm text-zinc-600 dark:text-zinc-400">
+            {caption}
+          </figcaption>
         </figure>
       )
     },
